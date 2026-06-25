@@ -40,9 +40,10 @@ app_web_robo_artigos.py
 ## Como o usuario usa
 
 1. Informa ate 5 palavras-chave ou consultas.
-2. Opcionalmente informa o periodo por ano.
-3. Clica em `Gerar planilha Excel pronta`.
-4. Baixa a planilha final.
+2. Se precisar, usa o painel lateral para traduzir termos em portugues para ingles.
+3. Opcionalmente informa o periodo por ano.
+4. Clica em `Gerar planilha Excel pronta`.
+5. Baixa a planilha final.
 
 Os parametros tecnicos de busca ficam configurados internamente para manter a experiencia simples.
 

@@ -5,9 +5,11 @@ import subprocess
 import sys
 import tempfile
 import time
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 
+import requests
 import streamlit as st
 
 
@@ -19,12 +21,79 @@ DEFAULT_WORKERS = 8
 DEFAULT_MAX_RECORDS = 500
 DEFAULT_TIMEOUT_MINUTES = 20
 DEFAULT_INCLUDE_NETWORKS = False
+TRANSLATION_GLOSSARY = {
+    "aprendizado de maquina": "machine learning",
+    "aprendizagem de maquina": "machine learning",
+    "inteligencia artificial": "artificial intelligence",
+    "redes neurais": "neural networks",
+    "rede neural": "neural network",
+    "redes neurais profundas": "deep neural networks",
+    "aprendizado profundo": "deep learning",
+    "aprendizagem profunda": "deep learning",
+    "varejo": "retail",
+    "varejo digital": "digital retail",
+    "omnichannel": "omnichannel",
+    "omnichannel varejo": "omnichannel retail",
+    "cadeia de suprimentos": "supply chain",
+    "logistica": "logistics",
+    "comportamento do consumidor": "consumer behavior",
+    "comportamento de compra": "shopping behavior",
+    "experiencia do cliente": "customer experience",
+    "satisfacao do cliente": "customer satisfaction",
+    "fidelizacao de clientes": "customer loyalty",
+    "transformacao digital": "digital transformation",
+    "inovacao": "innovation",
+    "sustentabilidade": "sustainability",
+    "marketing digital": "digital marketing",
+    "comercio eletronico": "e-commerce",
+    "ecommerce": "e-commerce",
+    "plataformas digitais": "digital platforms",
+    "analise de redes": "network analysis",
+    "redes sociais": "social networks",
+    "grafos": "graphs",
+    "redes bayesianas": "bayesian networks",
+}
 
 
 def safe_filename(text: str) -> str:
     text = re.sub(r"[^a-zA-Z0-9_-]+", "_", text.strip())
     text = re.sub(r"_+", "_", text).strip("_")
     return text[:80] or f"planilha_artigos_{datetime.now():%Y%m%d}"
+
+
+def normalize_lookup(text: str) -> str:
+    text = unicodedata.normalize("NFKD", text.lower())
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def translate_pt_to_en(text: str) -> tuple[str, str]:
+    text = text.strip()
+    if not text:
+        return "", ""
+
+    lookup = normalize_lookup(text)
+    if lookup in TRANSLATION_GLOSSARY:
+        return TRANSLATION_GLOSSARY[lookup], "glossario"
+
+    try:
+        response = requests.get(
+            "https://api.mymemory.translated.net/get",
+            params={"q": text, "langpair": "pt|en"},
+            timeout=8,
+        )
+        if response.status_code == 200:
+            data = response.json()
+            translated = (data.get("responseData") or {}).get("translatedText", "")
+            translated = re.sub(r"\s+", " ", translated).strip()
+            if translated:
+                return translated, "tradutor online"
+    except Exception:
+        pass
+
+    words = [TRANSLATION_GLOSSARY.get(normalize_lookup(part), part) for part in re.split(r"[,;]", text)]
+    translated = ", ".join(part.strip() for part in words if part.strip())
+    return translated or text, "texto original"
 
 
 def command_text(cmd: list[str]) -> str:
@@ -254,6 +323,8 @@ def apply_theme() -> None:
 def main() -> None:
     st.set_page_config(page_title="Robo de artigos academicos", page_icon=None, layout="centered")
     apply_theme()
+    for index in range(1, 6):
+        st.session_state.setdefault(f"keyword_{index}", "")
 
     st.markdown(
         """
@@ -276,41 +347,60 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
-    with st.form("search_form"):
-        st.subheader("Tema ou palavras-chave")
-        st.markdown('<p class="section-copy">Insira ate 5 palavras-chave ou consultas. Cada campo preenchido gera uma busca separada.</p>', unsafe_allow_html=True)
-        keyword_defaults = [
-            "",
-            "",
-            "",
-            "",
-            "",
-        ]
-        keyword_values: list[str] = []
-        for index, default in enumerate(keyword_defaults, start=1):
-            keyword_values.append(
+    input_col, translator_col = st.columns([1.55, 1], gap="large")
+
+    with input_col:
+        with st.form("search_form"):
+            st.subheader("Tema ou palavras-chave")
+            st.markdown('<p class="section-copy">Insira ate 5 palavras-chave ou consultas. Cada campo preenchido gera uma busca separada.</p>', unsafe_allow_html=True)
+            for index in range(1, 6):
                 st.text_input(
                     f"Palavra-chave {index}",
-                    value=default,
+                    key=f"keyword_{index}",
                     placeholder="Ex.: artificial intelligence in education",
                 )
+
+            c1, c2 = st.columns(2)
+            year_from_raw = c1.text_input("Ano inicial opcional", value="", placeholder="Ex.: 2020")
+            year_to_raw = c2.text_input("Ano final opcional", value="", placeholder="Ex.: 2026")
+
+            filename_base = st.text_input(
+                "Nome do arquivo",
+                value="planilha_artigos_academicos",
+                placeholder="Ex.: revisao_inteligencia_artificial",
+                help="Voce pode manter o nome sugerido ou escrever outro. A extensao .xlsx sera adicionada automaticamente.",
             )
+            st.info(
+                "Ao clicar, o aplicativo vai consultar fontes academicas abertas, combinar resultados repetidos, "
+                "limpar abstracts e montar uma planilha Excel padronizada para download."
+            )
+            submitted = st.form_submit_button("Gerar minha planilha Excel pronta")
 
-        c1, c2 = st.columns(2)
-        year_from_raw = c1.text_input("Ano inicial opcional", value="", placeholder="Ex.: 2020")
-        year_to_raw = c2.text_input("Ano final opcional", value="", placeholder="Ex.: 2026")
+    with translator_col:
+        with st.container(border=True):
+            st.subheader("Tradutor rapido")
+            st.caption("Digite uma palavra ou expressao em portugues para usar na busca em ingles.")
+            pt_text = st.text_input("Termo em portugues", placeholder="Ex.: varejo digital")
+            if st.button("Traduzir para ingles", use_container_width=True):
+                translated, source = translate_pt_to_en(pt_text)
+                st.session_state["translated_keyword"] = translated
+                st.session_state["translated_source"] = source
 
-        filename_base = st.text_input(
-            "Nome do arquivo",
-            value="planilha_artigos_academicos",
-            placeholder="Ex.: revisao_inteligencia_artificial",
-            help="Voce pode manter o nome sugerido ou escrever outro. A extensao .xlsx sera adicionada automaticamente.",
-        )
-        st.info(
-            "Ao clicar, o aplicativo vai consultar fontes academicas abertas, combinar resultados repetidos, "
-            "limpar abstracts e montar uma planilha Excel padronizada para download."
-        )
-        submitted = st.form_submit_button("Gerar minha planilha Excel pronta")
+            translated_keyword = st.session_state.get("translated_keyword", "")
+            if translated_keyword:
+                st.success(translated_keyword)
+                st.caption(f"Fonte: {st.session_state.get('translated_source', 'tradutor')}")
+                if st.button("Inserir no proximo campo livre", use_container_width=True):
+                    inserted = False
+                    for index in range(1, 6):
+                        key = f"keyword_{index}"
+                        if not st.session_state.get(key, "").strip():
+                            st.session_state[key] = translated_keyword
+                            inserted = True
+                            break
+                    if not inserted:
+                        st.session_state["keyword_5"] = translated_keyword
+                    st.rerun()
 
     if "excel_bytes" in st.session_state:
         st.download_button(
@@ -323,7 +413,7 @@ def main() -> None:
     if not submitted:
         return
 
-    keywords = "\n".join(value.strip() for value in keyword_values if value.strip())
+    keywords = "\n".join(st.session_state.get(f"keyword_{index}", "").strip() for index in range(1, 6) if st.session_state.get(f"keyword_{index}", "").strip())
     if not keywords.strip():
         st.error("Digite pelo menos um tema ou palavra-chave.")
         return
