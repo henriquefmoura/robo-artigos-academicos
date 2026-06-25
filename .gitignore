@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.streamlit/secrets.toml
+.venv/
+venv/
+*.xlsx
+*.xls
+*.csv
+*.json
+relatorios_robo/
