@@ -266,9 +266,9 @@ def main() -> None:
         st.subheader("Tema ou palavras-chave")
         st.markdown('<p class="section-copy">Insira ate 5 palavras-chave ou consultas. Cada campo preenchido gera uma busca separada.</p>', unsafe_allow_html=True)
         keyword_defaults = [
-            "digital retail neural network",
-            "omnichannel retail graph neural network",
-            "retail supply chain network",
+            "",
+            "",
+            "",
             "",
             "",
         ]
