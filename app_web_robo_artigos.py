@@ -13,6 +13,11 @@ import streamlit as st
 BASE = Path(__file__).resolve().parent
 SEARCH_SCRIPT = BASE / "buscar_artigos_redes.py"
 CLEAN_SCRIPT = BASE / "rpa_limpar_abstracts.py"
+DEFAULT_PER_QUERY = 25
+DEFAULT_WORKERS = 8
+DEFAULT_MAX_RECORDS = 500
+DEFAULT_TIMEOUT_MINUTES = 20
+DEFAULT_INCLUDE_NETWORKS = False
 
 
 def safe_filename(text: str) -> str:
@@ -25,7 +30,7 @@ def command_text(cmd: list[str]) -> str:
     return " ".join(f'"{part}"' if " " in part else part for part in cmd)
 
 
-def run_command(cmd: list[str], timeout_seconds: int, log_box) -> tuple[int, str]:
+def run_command(cmd: list[str], timeout_seconds: int) -> tuple[int, str]:
     started = time.monotonic()
     lines: list[str] = [f"$ {command_text(cmd)}\n"]
     process = subprocess.Popen(
@@ -44,17 +49,14 @@ def run_command(cmd: list[str], timeout_seconds: int, log_box) -> tuple[int, str
             line = process.stdout.readline()
             if line:
                 lines.append(line)
-                log_box.code("".join(lines[-120:]), language="text")
             if process.poll() is not None:
                 remainder = process.stdout.read()
                 if remainder:
                     lines.append(remainder)
-                    log_box.code("".join(lines[-120:]), language="text")
                 return process.returncode or 0, "".join(lines)
             if time.monotonic() - started > timeout_seconds:
                 process.terminate()
                 lines.append(f"\n[tempo limite atingido: {timeout_seconds // 60} min]\n")
-                log_box.code("".join(lines[-120:]), language="text")
                 return 124, "".join(lines)
             time.sleep(0.1)
     finally:
@@ -118,31 +120,32 @@ def build_commands(
 
 
 def main() -> None:
-    st.set_page_config(page_title="Robo de artigos academicos", page_icon=None, layout="wide")
+    st.set_page_config(page_title="Robo de artigos academicos", page_icon=None, layout="centered")
 
-    st.title("Robo de busca de artigos")
-    st.caption("Busca artigos em fontes academicas, limpa abstracts e gera uma planilha Excel pronta para baixar.")
+    st.title("Gerador de planilha de artigos academicos")
+    st.write(
+        "Informe o tema da sua pesquisa. O aplicativo busca artigos em bases academicas abertas, "
+        "remove registros sem abstract valido, organiza os metadados e entrega uma planilha Excel pronta para uso."
+    )
 
     with st.form("search_form"):
         keywords = st.text_area(
-            "Palavras-chave ou consultas",
+            "Tema ou palavras-chave",
             value="digital retail neural network\nomnichannel retail graph neural network\nretail supply chain network",
             height=130,
+            help="Use uma consulta por linha. Exemplos: artificial intelligence in education; digital retail; supply chain network.",
         )
 
-        c1, c2, c3, c4 = st.columns(4)
-        per_query = c1.number_input("Artigos por consulta", min_value=1, max_value=100, value=25, step=1)
-        workers = c2.number_input("Agentes paralelos", min_value=1, max_value=16, value=8, step=1)
-        max_records = c3.number_input("Limite final", min_value=1, max_value=5000, value=500, step=50)
-        timeout_minutes = c4.number_input("Tempo limite min.", min_value=1, max_value=120, value=20, step=1)
-
-        c5, c6, c7 = st.columns([1, 1, 2])
-        year_from_raw = c5.text_input("Ano inicial", value="")
-        year_to_raw = c6.text_input("Ano final", value="")
-        include_networks = c7.checkbox("Somar redes predefinidas", value=False)
+        c1, c2 = st.columns(2)
+        year_from_raw = c1.text_input("Ano inicial opcional", value="", placeholder="Ex.: 2020")
+        year_to_raw = c2.text_input("Ano final opcional", value="", placeholder="Ex.: 2026")
 
         filename_base = st.text_input("Nome do arquivo", value="corpus_artigos_limpo")
-        submitted = st.form_submit_button("Gerar Excel")
+        st.info(
+            "Ao clicar, o aplicativo vai consultar fontes academicas abertas, combinar resultados repetidos, "
+            "limpar abstracts e montar uma planilha Excel padronizada para download."
+        )
+        submitted = st.form_submit_button("Gerar planilha Excel pronta")
 
     if "excel_bytes" in st.session_state:
         st.download_button(
@@ -167,8 +170,7 @@ def main() -> None:
         return
 
     safe_base = safe_filename(filename_base)
-    timeout_seconds = int(timeout_minutes) * 60
-    log_box = st.empty()
+    timeout_seconds = DEFAULT_TIMEOUT_MINUTES * 60
 
     with tempfile.TemporaryDirectory(prefix="robo_artigos_") as tmp:
         output_dir = Path(tmp)
@@ -176,23 +178,26 @@ def main() -> None:
             keywords=keywords,
             output_dir=output_dir,
             filename_base=safe_base,
-            per_query=int(per_query),
-            workers=int(workers),
-            max_records=int(max_records),
+            per_query=DEFAULT_PER_QUERY,
+            workers=DEFAULT_WORKERS,
+            max_records=DEFAULT_MAX_RECORDS,
             year_from=year_from,
             year_to=year_to,
-            include_networks=include_networks,
+            include_networks=DEFAULT_INCLUDE_NETWORKS,
         )
 
         all_logs: list[str] = []
-        with st.status("Gerando planilha...", expanded=True) as status:
+        with st.status("Preparando sua planilha...", expanded=False) as status:
             for index, cmd in enumerate(commands, start=1):
-                st.write(f"Etapa {index}/{len(commands)}")
-                code, log = run_command(cmd, timeout_seconds, log_box)
+                if index == 1:
+                    st.write("Buscando artigos e abstracts nas bases academicas.")
+                else:
+                    st.write("Limpando e organizando a planilha final.")
+                code, log = run_command(cmd, timeout_seconds)
                 all_logs.append(log)
                 if code != 0:
                     status.update(label="Execucao interrompida", state="error")
-                    st.error("A geracao nao foi concluida. Veja o log acima.")
+                    st.error("A planilha nao foi concluida. Tente uma busca mais especifica ou execute novamente.")
                     st.session_state["last_log"] = "\n".join(all_logs)
                     return
             status.update(label="Planilha pronta", state="complete")
@@ -206,9 +211,9 @@ def main() -> None:
         st.session_state["excel_name"] = f"{safe_base}.xlsx"
         st.session_state["last_log"] = "\n".join(all_logs)
 
-        st.success("Excel gerado com sucesso.")
+        st.success("Sua planilha esta pronta.")
         st.download_button(
-            "Baixar Excel",
+            "Baixar planilha Excel",
             data=excel_bytes,
             file_name=f"{safe_base}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

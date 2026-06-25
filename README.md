@@ -37,14 +37,14 @@ app_web_robo_artigos.py
 
 6. Clique em `Deploy`.
 
-## Configuracao recomendada
+## Como o usuario usa
 
-- `Artigos por consulta`: 25
-- `Agentes paralelos`: 8
-- `Limite final`: 500
-- `Tempo limite`: 20 minutos
+1. Informa o tema ou as palavras-chave.
+2. Opcionalmente informa o periodo por ano.
+3. Clica em `Gerar planilha Excel pronta`.
+4. Baixa a planilha final.
 
-Para buscas muito amplas, reduza o limite final ou nao marque `Somar redes predefinidas`.
+Os parametros tecnicos de busca ficam configurados internamente para manter a experiencia simples.
 
 ## Observacoes
 
