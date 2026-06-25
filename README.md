@@ -15,6 +15,8 @@ Aplicativo web em Streamlit para buscar artigos academicos por palavras-chave, l
 - Mantem apenas registros com abstract valido.
 - Gera uma planilha Excel no mesmo padrao do corpus de revisao bibliografica.
 - Disponibiliza o arquivo `.xlsx` para baixar no navegador.
+- Preenche um fluxo PRISMA editavel com base nos resultados da planilha.
+- Permite baixar o PRISMA em PowerPoint editavel e SVG vetorial.
 
 ## Rodar localmente
 
@@ -43,7 +45,8 @@ app_web_robo_artigos.py
 2. Se precisar, usa o painel lateral para traduzir termos em portugues para ingles.
 3. Opcionalmente informa o periodo por ano.
 4. Clica em `Gerar planilha Excel pronta`.
-5. Baixa a planilha final.
+5. Revisa/edita os numeros do PRISMA.
+6. Baixa a planilha final e o PRISMA em alta qualidade.
 
 Os parametros tecnicos de busca ficam configurados internamente para manter a experiencia simples.
 
