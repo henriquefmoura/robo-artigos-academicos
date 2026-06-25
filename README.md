@@ -39,7 +39,7 @@ app_web_robo_artigos.py
 
 ## Como o usuario usa
 
-1. Informa ate 5 temas ou palavras-chave.
+1. Informa ate 5 palavras-chave ou consultas.
 2. Opcionalmente informa o periodo por ano.
 3. Clica em `Gerar planilha Excel pronta`.
 4. Baixa a planilha final.
