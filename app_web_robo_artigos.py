@@ -217,6 +217,19 @@ def apply_theme() -> None:
             color: white;
             filter: brightness(1.05);
         }
+        [data-testid="stFormSubmitButton"] button {
+            width: 100%;
+            min-height: 56px;
+            margin-top: 10px;
+            font-size: 1.05rem;
+            letter-spacing: 0;
+            background: linear-gradient(90deg, #f59e0b, #0d9488 45%, #2563eb);
+            box-shadow: 0 14px 30px rgba(37, 99, 235, 0.22);
+        }
+        [data-testid="stFormSubmitButton"] button:hover {
+            box-shadow: 0 16px 36px rgba(13, 148, 136, 0.28);
+            transform: translateY(-1px);
+        }
         [data-testid="stForm"] {
             border: 1px solid #dbeafe;
             border-radius: 16px;
@@ -297,7 +310,7 @@ def main() -> None:
             "Ao clicar, o aplicativo vai consultar fontes academicas abertas, combinar resultados repetidos, "
             "limpar abstracts e montar uma planilha Excel padronizada para download."
         )
-        submitted = st.form_submit_button("Gerar planilha Excel pronta")
+        submitted = st.form_submit_button("Gerar minha planilha Excel pronta")
 
     if "excel_bytes" in st.session_state:
         st.download_button(
