@@ -4,6 +4,7 @@ import argparse
 import html
 import re
 import time
+import unicodedata
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -17,6 +18,53 @@ from bs4 import BeautifulSoup
 
 BASE = Path(__file__).resolve().parent
 DEFAULT_OUTPUT = BASE / "Corpus_busca_redes_retail.xlsx"
+STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "as",
+    "by",
+    "for",
+    "from",
+    "in",
+    "of",
+    "on",
+    "or",
+    "the",
+    "to",
+    "via",
+    "with",
+    "ao",
+    "aos",
+    "as",
+    "com",
+    "da",
+    "das",
+    "de",
+    "do",
+    "dos",
+    "e",
+    "em",
+    "na",
+    "nas",
+    "no",
+    "nos",
+    "o",
+    "os",
+    "para",
+    "por",
+}
+TAX_LEGAL_MARKERS = {
+    "cbs",
+    "fiscal",
+    "ibs",
+    "icms",
+    "imposto",
+    "juridic",
+    "regime",
+    "tax",
+    "tribut",
+}
 TEMPLATE_HEADERS = [
     "DOI",
     "titulo",
@@ -125,6 +173,96 @@ def clean_abstract(raw: Any) -> str:
 
 def normalize_key(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", norm(value).lower()).strip()
+
+
+def normalize_match_text(value: Any) -> str:
+    text = unicodedata.normalize("NFKD", norm(value).lower())
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return re.sub(r"[^a-z0-9]+", " ", text).strip()
+
+
+def query_tokens(query: str) -> list[str]:
+    tokens = normalize_match_text(query).split()
+    useful: list[str] = []
+    has_number = any(token.isdigit() for token in tokens)
+    for token in tokens:
+        if token in STOPWORDS:
+            continue
+        if token.isdigit() and len(token) >= 2:
+            useful.append(token)
+        elif len(token) >= 3:
+            useful.append(token)
+        elif has_number and len(token) >= 2:
+            useful.append(token)
+    return useful
+
+
+def record_match_text(record: dict[str, Any]) -> str:
+    fields = [
+        record.get("titulo", ""),
+        record.get("abstract", ""),
+        record.get("publicacao", ""),
+        record.get("sco_categorias", ""),
+        record.get("sco_areas", ""),
+        record.get("_tipo_publicacao", ""),
+    ]
+    return normalize_match_text(" ".join(norm(field) for field in fields))
+
+
+def record_title_text(record: dict[str, Any]) -> str:
+    return normalize_match_text(record.get("titulo", ""))
+
+
+def token_present(text: str, token: str) -> bool:
+    if f" {token} " in text:
+        return True
+    variants = set()
+    if len(token) >= 5 and token.endswith("s"):
+        variants.add(token[:-1])
+    if token.endswith("coes"):
+        variants.add(token[:-4] + "cao")
+    if token.endswith("cao"):
+        variants.add(token[:-3] + "coes")
+    if len(token) >= 7:
+        variants.add(token[: max(6, len(token) - 3)])
+    return any(re.search(rf"\b{re.escape(variant)}[a-z0-9]*\b", text) for variant in variants if len(variant) >= 4)
+
+
+def record_matches_query(record: dict[str, Any], mode: str = "strict") -> bool:
+    if mode == "off":
+        return True
+    query = norm(record.get("_consulta"))
+    if not query:
+        return True
+
+    tokens = query_tokens(query)
+    if not tokens:
+        return True
+
+    title_text = f" {record_title_text(record)} "
+    text = f" {record_match_text(record)} "
+    normalized_query = normalize_match_text(query)
+    if len(normalized_query) >= 8 and f" {normalized_query} " in text:
+        return True
+
+    matched = sum(1 for token in tokens if token_present(text, token))
+    title_matched = sum(1 for token in tokens if token_present(title_text, token))
+    if mode == "normal":
+        if any(token.isdigit() for token in tokens):
+            return matched == len(tokens)
+        if len(tokens) <= 2:
+            return matched == len(tokens)
+        return matched >= max(2, int(len(tokens) * 0.5 + 0.999))
+
+    if {"bens", "servicos"}.issubset(set(tokens)) and "imposto" not in tokens:
+        if not any(token_present(text, marker) for marker in TAX_LEGAL_MARKERS):
+            return False
+
+    if any(token.isdigit() for token in tokens):
+        return f" {normalized_query} " in text or title_matched == len(tokens)
+    if len(tokens) <= 2:
+        return f" {normalized_query} " in text or title_matched == len(tokens)
+    return matched == len(tokens) and title_matched >= min(2, len(tokens))
 
 
 def abstract_from_openalex(index: dict[str, list[int]] | None) -> str:
@@ -606,6 +744,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--year-from", type=int, default=None, help="Ano inicial opcional.")
     parser.add_argument("--year-to", type=int, default=None, help="Ano final opcional.")
+    parser.add_argument(
+        "--relevance",
+        choices=["strict", "normal", "off"],
+        default="strict",
+        help="Filtro de aderencia entre resultado e palavra-chave original.",
+    )
     return parser.parse_args()
 
 
@@ -615,6 +759,7 @@ def main() -> None:
     records_by_key: dict[str, dict[str, Any]] = {}
     queries = build_queries(args)
     workers = max(1, args.workers)
+    discarded_by_relevance = 0
 
     print(
         f"Consultas planejadas: {len(queries)} | fontes: {len(sources)} | trabalhadores: {workers}",
@@ -649,6 +794,9 @@ def main() -> None:
                     continue
                 if not passes_year_filter(record, args.year_from, args.year_to):
                     continue
+                if not record_matches_query(record, args.relevance):
+                    discarded_by_relevance += 1
+                    continue
                 key = dedupe_key(record)
                 records_by_key[key] = merge_record(records_by_key.get(key), record)
             if completed == total or completed % max(1, workers) == 0:
@@ -669,6 +817,7 @@ def main() -> None:
         records = records[: args.max_records]
     write_workbook(records, args.output.resolve())
     print(f"Consultas executadas: {len(queries)}")
+    print(f"Artigos descartados por baixa aderencia: {discarded_by_relevance}")
     print(f"Artigos sem abstract descartados: {removed_without_abstract}")
     print(f"Artigos unicos encontrados: {len(records)}")
     print(f"Planilha gerada: {args.output.resolve()}")

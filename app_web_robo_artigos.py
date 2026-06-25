@@ -229,16 +229,17 @@ def extract_int_from_logs(logs: list[str], label: str) -> int:
 
 def build_prisma_values(logs: list[str], workbook_path: Path) -> dict[str, int]:
     included = read_final_count(workbook_path)
+    discarded_by_relevance = extract_int_from_logs(logs, "Artigos descartados por baixa aderencia")
     discarded_without_abstract = extract_int_from_logs(logs, "Artigos sem abstract descartados")
-    identified = max(included + discarded_without_abstract, included)
+    identified = max(included + discarded_by_relevance + discarded_without_abstract, included)
     return {
         "identified": identified,
         "keyword_filter": identified,
         "screened": identified,
-        "topic_not_addressed": discarded_without_abstract,
+        "topic_not_addressed": discarded_by_relevance,
         "non_relevant": 0,
         "retracted": 0,
-        "abstract_screened": identified,
+        "abstract_screened": max(included + discarded_without_abstract, included),
         "abstract_existent": included,
         "abstract_collected": 0,
         "abstract_not_addressed": discarded_without_abstract,

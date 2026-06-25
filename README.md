@@ -12,6 +12,7 @@ Aplicativo web em Streamlit para buscar artigos academicos por palavras-chave, l
   - DOAJ
   - arXiv
 - Junta metadados quando o mesmo artigo aparece em mais de uma fonte.
+- Aplica filtro de aderencia para reduzir resultados fora das palavras-chave informadas.
 - Mantem apenas registros com abstract valido.
 - Gera uma planilha Excel no mesmo padrao do corpus de revisao bibliografica.
 - Disponibiliza o arquivo `.xlsx` para baixar no navegador.
