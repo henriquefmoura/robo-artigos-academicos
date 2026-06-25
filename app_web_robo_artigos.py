@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
@@ -23,7 +24,7 @@ DEFAULT_INCLUDE_NETWORKS = False
 def safe_filename(text: str) -> str:
     text = re.sub(r"[^a-zA-Z0-9_-]+", "_", text.strip())
     text = re.sub(r"_+", "_", text).strip("_")
-    return text[:80] or "corpus_artigos"
+    return text[:80] or f"planilha_artigos_{datetime.now():%Y%m%d}"
 
 
 def command_text(cmd: list[str]) -> str:
@@ -286,7 +287,12 @@ def main() -> None:
         year_from_raw = c1.text_input("Ano inicial opcional", value="", placeholder="Ex.: 2020")
         year_to_raw = c2.text_input("Ano final opcional", value="", placeholder="Ex.: 2026")
 
-        filename_base = st.text_input("Nome do arquivo", value="corpus_artigos_limpo")
+        filename_base = st.text_input(
+            "Nome do arquivo",
+            value="planilha_artigos_academicos",
+            placeholder="Ex.: revisao_inteligencia_artificial",
+            help="Voce pode manter o nome sugerido ou escrever outro. A extensao .xlsx sera adicionada automaticamente.",
+        )
         st.info(
             "Ao clicar, o aplicativo vai consultar fontes academicas abertas, combinar resultados repetidos, "
             "limpar abstracts e montar uma planilha Excel padronizada para download."
@@ -297,7 +303,7 @@ def main() -> None:
         st.download_button(
             "Baixar ultimo Excel gerado",
             data=st.session_state["excel_bytes"],
-            file_name=st.session_state.get("excel_name", "corpus_artigos_limpo.xlsx"),
+            file_name=st.session_state.get("excel_name", "planilha_artigos_academicos.xlsx"),
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
