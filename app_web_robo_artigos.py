@@ -129,12 +129,24 @@ def main() -> None:
     )
 
     with st.form("search_form"):
-        keywords = st.text_area(
-            "Tema ou palavras-chave",
-            value="digital retail neural network\nomnichannel retail graph neural network\nretail supply chain network",
-            height=130,
-            help="Use uma consulta por linha. Exemplos: artificial intelligence in education; digital retail; supply chain network.",
-        )
+        st.subheader("Tema ou palavras-chave")
+        st.caption("Insira ate 5 temas/consultas. Cada campo gera uma busca separada.")
+        keyword_defaults = [
+            "digital retail neural network",
+            "omnichannel retail graph neural network",
+            "retail supply chain network",
+            "",
+            "",
+        ]
+        keyword_values: list[str] = []
+        for index, default in enumerate(keyword_defaults, start=1):
+            keyword_values.append(
+                st.text_input(
+                    f"Busca {index}",
+                    value=default,
+                    placeholder="Ex.: artificial intelligence in education",
+                )
+            )
 
         c1, c2 = st.columns(2)
         year_from_raw = c1.text_input("Ano inicial opcional", value="", placeholder="Ex.: 2020")
@@ -158,8 +170,9 @@ def main() -> None:
     if not submitted:
         return
 
+    keywords = "\n".join(value.strip() for value in keyword_values if value.strip())
     if not keywords.strip():
-        st.error("Digite pelo menos uma palavra-chave ou consulta.")
+        st.error("Digite pelo menos um tema ou palavra-chave.")
         return
 
     try:
