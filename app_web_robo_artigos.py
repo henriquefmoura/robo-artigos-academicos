@@ -185,6 +185,9 @@ def build_commands(
         str(workers),
         "--max-records",
         str(max_records),
+        "--relevance",
+        "normal",
+        "--keep-without-abstract",
         "--wait",
         "0.05",
         "--output",
@@ -206,7 +209,6 @@ def build_commands(
         "--wait",
         "0.05",
         "--no-auto-reference",
-        "--drop-empty-abstracts",
         "--skip-missing-fetch",
     ]
     return final_output, [search_cmd, clean_cmd]
@@ -568,7 +570,7 @@ def main() -> None:
         <div class="hero">
             <div class="eyebrow">Busca academica automatizada</div>
             <h1>Gerador de planilha de artigos academicos</h1>
-            <p>Informe seus termos de pesquisa. O aplicativo busca artigos em bases abertas, limpa os abstracts e entrega um Excel padronizado para baixar.</p>
+            <p>Pesquise qualquer assunto. O aplicativo consulta bases academicas abertas, combina os resultados e entrega um Excel padronizado para baixar.</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -577,7 +579,7 @@ def main() -> None:
         """
         <div class="step-grid">
             <div class="step-card"><div class="step-number">Etapa 1</div><strong>Busca</strong><span>Consulta bases academicas abertas.</span></div>
-            <div class="step-card"><div class="step-number">Etapa 2</div><strong>Organiza</strong><span>Remove duplicados e abstracts invalidos.</span></div>
+            <div class="step-card"><div class="step-number">Etapa 2</div><strong>Organiza</strong><span>Remove duplicados e limpa os abstracts disponiveis.</span></div>
             <div class="step-card"><div class="step-number">Etapa 3</div><strong>Entrega</strong><span>Gera uma planilha Excel pronta.</span></div>
         </div>
         """,

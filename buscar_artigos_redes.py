@@ -682,8 +682,16 @@ def write_workbook(records: list[dict[str, Any]], output: Path) -> None:
 def split_keywords(raw_keywords: list[str] | None) -> list[str]:
     if not raw_keywords:
         return []
-    joined = " ".join(raw_keywords)
-    parts = re.split(r"[\n;,]+", joined)
+    # Commas often belong to a natural-language research question. The web app
+    # already sends one field per line, while semicolons remain available as a
+    # convenient CLI separator.
+    # Multiple quoted CLI arguments are also independent queries; unquoted
+    # words remain one query for backward compatibility.
+    if len(raw_keywords) > 1 and any(re.search(r"\s", item.strip()) for item in raw_keywords):
+        chunks = raw_keywords
+    else:
+        chunks = [" ".join(raw_keywords)]
+    parts = [part for chunk in chunks for part in re.split(r"[\n;]+", chunk)]
     return [norm(part.strip().strip('"')) for part in parts if norm(part.strip().strip('"'))]
 
 
@@ -712,7 +720,7 @@ def build_queries(args: argparse.Namespace) -> list[tuple[str, str, str]]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Busca artigos sobre tipos de redes aplicados a retail/digital retail em varias fontes academicas.",
+        description="Busca artigos de qualquer area em varias fontes academicas abertas.",
     )
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help="Planilha XLSX de saida.")
     parser.add_argument("--per-query", type=int, default=25, help="Resultados por consulta e fonte.")
@@ -747,7 +755,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--relevance",
         choices=["strict", "normal", "off"],
-        default="strict",
+        default="normal",
         help="Filtro de aderencia entre resultado e palavra-chave original.",
     )
     return parser.parse_args()
